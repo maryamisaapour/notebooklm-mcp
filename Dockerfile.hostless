@@ -21,7 +21,7 @@ RUN npx --no-install patchright install chromium
 COPY --chown=notebooklm:notebooklm hostless.mjs ./
 
 ENV NODE_ENV=production \
-    DATA_DIR=/data \
+    DATA_DIR=/app/data \
     HEADLESS=true \
     MAX_SESSIONS=1 \
     PLAYWRIGHT_BROWSERS_PATH=/home/notebooklm/.cache/ms-playwright
