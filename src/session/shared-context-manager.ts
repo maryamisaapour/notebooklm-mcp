@@ -183,13 +183,8 @@ export class SharedContextManager {
       viewport: CONFIG.viewport,
       locale: browserLocale,
       timezoneId: browserTimezone,
-      // ✅ CRITICAL FIX: Pass storageState directly at launch!
-      // This is the PROPER way to handle session cookies (Playwright bug workaround)
-      // Benefits:
-      // - Session cookies persist correctly
-      // - No need for addCookies() workarounds
-      // - Chrome loads everything automatically
-      ...(statePath && { storageState: statePath }),
+      // Persistent contexts do not support the storageState launch option.
+      // Restore saved authentication cookies explicitly after launch below.
       args: [
         '--disable-blink-features=AutomationControlled',
         '--disable-dev-shm-usage',
@@ -257,6 +252,20 @@ export class SharedContextManager {
       this.globalContext = await tryLaunch(isolatedDir);
       this.currentProfileDir = isolatedDir;
       this.isIsolatedProfile = true;
+    }
+    if (statePath) {
+      try {
+        const savedState = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+        if (!Array.isArray(savedState.cookies)) {
+          throw new Error('Invalid saved authentication state');
+        }
+        await this.globalContext!.addCookies(savedState.cookies);
+        log.success('  ✅ Saved authentication cookies restored to persistent context');
+      } catch {
+        await this.globalContext?.close().catch(() => {});
+        this.globalContext = null;
+        throw new Error('Could not restore saved authentication cookies');
+      }
     }
     this.contextCreatedAt = Date.now();
     this.currentHeadlessMode = shouldBeHeadless;
