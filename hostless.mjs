@@ -3,7 +3,8 @@
 import http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const apiKey = process.env.NOTEBOOKLM_API_KEY || '';
@@ -22,8 +23,13 @@ if (process.argv.includes('--client')) {
 } else {
   // Store login state in Hostless environment variables to survive redeploys.
   // Never commit this value to GitHub: it contains Google session cookies.
-  const dataDir = process.env.DATA_DIR || '/app/data';
-  mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+  let dataDir = process.env.DATA_DIR || '/app/data';
+  try {
+    mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+  } catch (error) {
+    console.warn(`Configured data directory unavailable (${error.code}); using temporary runtime storage.`);
+    dataDir = mkdtempSync(join(tmpdir(), 'notebooklm-'));
+  }
   const savedState = process.env.NOTEBOOKLM_STORAGE_STATE_B64;
   if (savedState) {
     let state;
