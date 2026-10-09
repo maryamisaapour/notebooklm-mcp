@@ -3,6 +3,8 @@
 import http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const apiKey = process.env.NOTEBOOKLM_API_KEY || '';
 if (process.argv.includes('--client')) {
@@ -18,15 +20,34 @@ if (process.argv.includes('--client')) {
   };
   await import('./dist/stdio-http-proxy.js');
 } else {
+  // Store login state in Hostless environment variables to survive redeploys.
+  // Never commit this value to GitHub: it contains Google session cookies.
+  const dataDir = process.env.DATA_DIR || '/data';
+  const savedState = process.env.NOTEBOOKLM_STORAGE_STATE_B64;
+  if (savedState) {
+    let state;
+    try {
+      if (savedState.length > 2 * 1024 * 1024) throw new Error();
+      state = JSON.parse(Buffer.from(savedState, 'base64').toString('utf8'));
+    } catch {
+      throw new Error('Invalid NOTEBOOKLM_STORAGE_STATE_B64 storage state.');
+    }
+    if (!state || !Array.isArray(state.cookies) || !Array.isArray(state.origins)) {
+      throw new Error('Invalid NOTEBOOKLM_STORAGE_STATE_B64 storage state.');
+    }
+    const stateDir = join(dataDir, 'browser_state');
+    mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+    writeFileSync(join(stateDir, 'state.json'), JSON.stringify(state), { mode: 0o600 });
+  }
   const port = Number(process.env.PORT || 8000);
-  const upstreamPort = port === 3001 ? 3002 : 3001;
+  const upstreamPort = port + 1;
   const child = spawn(process.execPath, ['dist/http-wrapper.js'], {
     cwd: new URL('.', import.meta.url),
     env: {
       ...process.env,
       HTTP_HOST: '127.0.0.1',
       HTTP_PORT: String(upstreamPort),
-      DATA_DIR: process.env.DATA_DIR || '/data',
+      DATA_DIR: dataDir,
       HEADLESS: 'true',
       MAX_SESSIONS: '1',
     },
