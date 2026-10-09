@@ -22,7 +22,8 @@ if (process.argv.includes('--client')) {
 } else {
   // Store login state in Hostless environment variables to survive redeploys.
   // Never commit this value to GitHub: it contains Google session cookies.
-  const dataDir = process.env.DATA_DIR || '/data';
+  const dataDir = process.env.DATA_DIR || '/app/data';
+  mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   const savedState = process.env.NOTEBOOKLM_STORAGE_STATE_B64;
   if (savedState) {
     let state;
